@@ -9,10 +9,9 @@ export class PhotosScreen extends Component {
     return (
       <Screen className="photos-screen">
         <div className="photos-screen--slider">
-          <PhotosSlider images={this.props.images}>
+          <PhotosSlider {...this.props}>
           </PhotosSlider>
         </div>
-        {this.props.title}
       </Screen>
     );
   }

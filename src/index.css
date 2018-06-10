@@ -1,5 +1,12 @@
+@font-face {
+  font-family: ArbatDi; /* Имя шрифта */
+  src: url(./font/ArbatDi.ttf); /* Путь к файлу со шрифтом */
+}
+
 body {
   margin: 0;
   padding: 0;
-  font-family: sans-serif;
+  font-family: ArbatDi sans-serif;
+  color: #252524;
+  background-color: #ebe8e3;
 }

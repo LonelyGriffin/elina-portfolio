@@ -8,5 +8,5 @@
 
 .screens-container {
   position: relative;
-  transition: top ease-out 0.5s;
+  transition: top ease-in 1s;
 }

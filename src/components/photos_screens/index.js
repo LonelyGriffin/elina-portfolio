@@ -1,13 +1,9 @@
 import React, { Component } from 'react';
 import { FullWindowContainer } from '../full_window_container';
 import { PhotosScreen } from '../photos_screen';
-import posed from 'react-pose'
+import { Screen } from '../screen';
 import './style.css';
 
-const AnimatedScreens = posed.div({
-  0: { top: '0%' },
-  1: { top: '-50%' },
-})
 
 export class PhotosScreens extends Component {
   renderScreens = () => {
@@ -16,27 +12,32 @@ export class PhotosScreens extends Component {
         key={index}
         title={screen.title}
         images={screen.images}
+        cover={screen.cover}
+        currentScreen={this.props.currentPage}
+        screenNumber={index}
       >
       </PhotosScreen>
     )
   }
 
   getContainerTop = () => {
-    const { currentPage, screens } = this.props;
+    const { currentPage } = this.props;
 
-    return -currentPage * 100;
+    return -(currentPage + 1) * 100;
   }
 
   render() {
-    const currentPage = this.props.currentPage;
     const containerStyle = {
       top: `${this.getContainerTop()}%`,
     }
+
+    const screens = this.renderScreens();
+    screens.unshift(<Screen key="home"></Screen>);
     return (
       <FullWindowContainer>
           <div className="screens">
             <div className="screens-container" style={containerStyle}>
-              { this.renderScreens() }
+              { screens }
             </div>
           </div>
       </FullWindowContainer>

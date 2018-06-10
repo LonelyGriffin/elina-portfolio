@@ -1,35 +1,67 @@
 import React, { Component } from 'react';
 import { WindowResize } from '../../utils/window_resize';
 import { getWindowHeight, getWindowWidth } from '../../utils/window_size';
-import { ImageCache } from '../../utils/image_cache';
+import * as THREE from 'three';
 import './style.css';
+import { SlideAppearance, SLIDE_APPEARANCE_UP, SLIDE_APPEARANCE_NORMAL, SLIDE_APPEARANCE_DOWN } from '../slide_appearance';
 
-// const isWaveOverImage = (waveX, waveY, radius, x, y, w, h) => {
-
-// };
-
-var spherize = function(px,py, width, height, curX, curY, maxr) {
-  var x = px-curX;
-  var y = py-curY;
-  var r = Math.sqrt(x*x+y*y);
-  if (r>maxr) return {
-      'xx':px,
-      'yy':py
-  }
-  var a = Math.atan2(y,x);
-  var k = (r/maxr)*(r/maxr)*0.5+0.5;
-  var dx = Math.cos(a)*r*k;
-  var dy = Math.sin(a)*r*k;
-  return {
-      'xx': dx+curX,
-      'yy': dy+curY
-  }
+const loadTexture = async (imageUrl) => {
+  return new Promise(done => {
+    const texture = new THREE.TextureLoader().load(imageUrl, () => {
+      // texture.wrapS = THREE.RepeatWrapping;
+      // texture.wrapT = THREE.RepeatWrapping;
+      texture.minFilter = THREE.LinearFilter;
+      // texture.repeat.set(1, 1);
+      done(texture);
+    });
+  });
 }
 
-const colorat = (x, y, channel, texture, height) => {
-  return texture.data[(x + y * height) * 4 + channel];
+const loadTextures = async (imageUrls) => {
+  const textures = [];
+  for(let i = 0; i < imageUrls.length; i++) {
+    const texture = await loadTexture(imageUrls[i]);
+    textures.push(texture);
+  }
+  return textures;
 }
 
+/**
+ * Возвращает информацию о размера и положении текстуры и граничащей области
+ * @param {THREE.Texture} texture 
+ * @param {number} width ширина окна
+ * @param {number} height ширина окна
+ */
+const getTextureBoundaries = (texture, width, height) => {
+  const boundaryAspect = 4 / 3; // соотношение сторон ограничивающей области w / h
+  const textureWidth = texture.image.width;
+  const textureHeight = texture.image.height;
+
+  // размеры ограничивающей текстуру области
+  const bHeight = Math.round(0.78 * height); // константа от балды
+  const bWidth = Math.round(bHeight * boundaryAspect);
+
+  const kw = textureWidth / bWidth;
+  const kh = textureHeight / bHeight;
+
+  // размеры текстуры
+  let w = textureWidth > bWidth ? bWidth : textureWidth;
+  let h = textureHeight > bHeight ? bHeight : textureHeight;
+
+  if (kw > kh) {
+    h = w * (textureHeight / textureWidth);
+  } else {
+    w = h * (textureWidth / textureHeight);
+  }
+
+  // положение текстуры и ограничивающей области относительно левого верхнего угла экрана
+  const x = Math.round((width - w) / 2);
+  const y = Math.round((height - h) / 2);
+  const bX = Math.round((width - bWidth) / 2);
+  const bY = Math.round((height - bHeight) / 2);
+
+  return { x, y, w, h, bWidth, bHeight, bX, bY };
+}
 
 export class PhotosSlider extends Component {
   constructor(props) {
@@ -38,222 +70,211 @@ export class PhotosSlider extends Component {
     this.state = {
       width: getWindowWidth(),
       height: getWindowHeight(),
-      x: 0,
-      y: 0,
-      h: 0,
-      w: 0,
-      currentImage: 0,
+      currentTexture: -1,
     }
 
-    this.canvasRef = React.createRef();
-    this.doubleBufferCanvas = document.createElement('canvas');
-    this.doubleBufferCtx = this.doubleBufferCanvas.getContext('2d');
-
-    this.timer = undefined;
+    this.treeContainerRef = React.createRef();
+    this.requestID = undefined;
     this.radius = 0;
   }
 
   async componentDidMount() {
+    this.textures = await loadTextures(this.props.images);
+    this.coverTexture = await loadTexture(this.props.cover);
+    this.scene = new THREE.Scene();
+    this.renderer = new THREE.WebGLRenderer({ alpha: true });
+    this.camera = new THREE.PerspectiveCamera();
+    this.plane = new THREE.Mesh();
+
+    this.renderer.setClearColor(0xb9c1b9, 0);
+    this.plane.position.set(0, 0, 0);
+    this.scene.add(this.plane);
+    this.camera.lookAt(this.plane.position);
+
+    this.treeContainerRef.current.appendChild(this.renderer.domElement);
+
     WindowResize.on(this.handleWindowResize);
-    this.ctx = this.canvasRef.current.getContext('2d');
-    const width = getWindowWidth();
-    const height = getWindowHeight();
-    this.setCanvasesSize(width, height);
 
-    this.images = await ImageCache.getImages(this.props.images);
-
-    this.renderCanvas();
+    this.handleWindowResize();
   }
   componentWillUnmount() {
     WindowResize.off(this.handleWindowResize);
-    clearInterval(this.timer);
+    this.stopWaveEffect(this.requestID)
   }
   componentDidUpdate() {
-    this.renderCanvas();
+    const texture = this.getTexture();
+    const { width, height, currentTexture } = this.state;
+    const { bWidth, bHeight, w, h } = getTextureBoundaries(texture, width, height);
+    const borderSize = currentTexture !== -1 ? 80 : 0; // если не ковер то добавляем границу
+
+    this.renderer.setSize(bWidth, bHeight);
+    this.plane.material = new THREE.MeshBasicMaterial({map: texture});
+    this.plane.geometry = new THREE.PlaneGeometry(w, h, 40, 40);
+    this.plane.position.set(0, 0, 0);
+    this.camera.position.set(0, 0, 100);
+    this.camera.lookAt(this.plane.position);
+
+    this.camera.aspect = bWidth / bHeight;
+    this.camera.fov = 2 * 180 * Math.atan((bHeight + borderSize) / 200) / Math.PI;
+    this.camera.near = 1;
+    this.camera.far = 100;
+    this.camera.updateProjectionMatrix();
+
+    this.renderer.render(this.scene, this.camera);
   }
 
   handleWindowResize = () => {
     const width = getWindowWidth();
     const height = getWindowHeight();
-
-    this.setCanvasesSize(width, height);
-
     this.setState({
       width,
       height,
     });
   }
 
-  setCanvasesSize = (width, height) => {
-    this.doubleBufferCanvas.width = width;
-    this.doubleBufferCanvas.height = height;
-    this.canvasRef.current.width = width;
-    this.canvasRef.current.height = height;
-  }
-
-  renderCanvas () {
-    const { currentImage } = this.state;
-    const { x, y, w, h } = this.getImageBoundary(this.images[currentImage]);
-    this.ctx.clearRect(0, 0, this.canvasRef.current.width, this.canvasRef.current.height);
-    this.ctx.drawImage(this.images[currentImage], x, y, w, h);
-    if (
-      x !== this.state.x ||
-      y !== this.state.y ||
-      w !== this.state.w ||
-      h !== this.state.h
-    ) {
-      this.setState({x, y, w, h});
-    }
-  }
-
-  getImageBoundary = (img) => {
-    const { width, height } = this.state;
-    const imgWidth = img.width;
-    const imgHeight = img.height;
-
-    const boundaryWidth = Math.round(0.7 * width);
-    const boundaryHeight = Math.round(0.8 * height);
-    
-    let w = imgWidth > boundaryWidth ? boundaryWidth : imgWidth;
-    let h = imgHeight > boundaryHeight ? boundaryHeight : imgHeight;
-
-    if (w < h) {
-      h = w * (imgHeight / imgWidth);
-    } else {
-      w = h * (imgWidth / imgHeight);
-    }
-
-    const x = Math.round((width - w) / 2);
-    const y = Math.round((height - h) / 2);
-
-    return { x, y, w, h };
-  }
-
   handleMouseEnter = (e) => {
-    // console.log(e, 'enter');
+    e.persist();
+    const { width, height } = this.state;
+    const { bX, bY, bWidth, bHeight } = getTextureBoundaries(this.getTexture(), width, height);
+    this.startWaveEffect(e.clientX - bX - bWidth / 2, -(e.clientY - bY - bHeight / 2));
   }
-  handleMouseLeave = (e) => {
-    // console.log(e, 'leave');
-  }
+
   handleClick = (e) => {
-    const { currentImage } = this.state;
-    const newCurrentImage = currentImage >= this.props.images.length - 1 ? 0 : currentImage + 1;
-    this.setState({
-      currentImage: newCurrentImage,
-    });
+    e.persist();
 
-    this.makeAnimateWaveEffect(e.clientX, e.clientY);
+    const { currentTexture } = this.state;
+    const newCurrentTexture = currentTexture >= this.textures.length - 1
+      ? -1
+      : currentTexture + 1;
+
+    this.setState({
+      currentTexture: newCurrentTexture,
+    }, () => {
+      const { width, height } = this.state;
+      const { bX, bY, bWidth, bHeight } = getTextureBoundaries(this.getTexture(), width, height);
+      this.startWaveEffect(e.clientX - bX - bWidth / 2, -(e.clientY - bY - bHeight / 2));
+    });
   }
 
-  makeAnimateWaveEffect(waveX, waveY) {
-    console.log(waveX, waveY, 'x y');
+  startWaveEffect(centerX, centerY) {
+    this.stopWaveEffect(this.requestID);
 
-    clearInterval(this.timer);
-    this.radius = 0;
+    const drawFrame = (ts) => {
+      const center = new THREE.Vector2(centerX, centerY);
+      const vLength = this.plane.geometry.vertices.length;
+      let maxDist = 0;
+      for (let i = 0; i < vLength; i++) {
+        const v = this.plane.geometry.vertices[i];
+        const dist = new THREE.Vector2(v.x, v.y).sub(center).length();
+        maxDist = Math.max(dist, maxDist);
+        const size = 200;
+        const magnitude = 0.25;
 
-    this.timer = setInterval(() => {
-      const { radius } = this;
-      if (radius > 1000) {
-        clearInterval(this.timer);
-        this.renderCanvas();
-        return;
-      }
-
-      const { currentImage, width, height } = this.state;
-      const { x, y, w, h } = this.getImageBoundary(this.images[currentImage]);
-      // this.ctx.fillStyle = "rgb(256, 256, 256)";
-      // this.ctx.fillRect(0, 0, this.canvasRef.current.width, this.canvasRef.current.height);
-      this.ctx.clearRect(0, 0, this.canvasRef.current.width, this.canvasRef.current.height);
-      this.ctx.drawImage(this.images[currentImage], x, y, w, h);
-
-      const pixelsSource = this.ctx.getImageData(0, 0, width, height);
-      const pixelsResult = this.ctx.getImageData(0, 0, width, height);
-      const waveSize = 300;
-
-      for (let curX = 0; curX < width; curX++) {
-        for(let curY = 0; curY < height; curY++) {
-          const curDistance = Math.sqrt((curX - waveX) ** 2 + (curY - waveY) ** 2);
-          if (curDistance > radius && curDistance < radius + waveSize) {
-            const waveScale = Math.sin(Math.PI * (curDistance - radius) / waveSize);
-            // const waveScale = 0;
-
-            // const zoomedX = Math.floor((curX + width * 0.5) * 0.5);
-            // const zoomedY = Math.floor((curY + height * 0.5) * 0.5);
-            
-            // const k1 = 0.5 + 0.5 * waveScale;
-            // const k2 = (k1 - 0.5) / 2 - (k1 - 0.5) * waveScale / 2;
-            const k1 = 0.5 + 0.5 * Math.sin((Math.PI / 2) * (curDistance - radius) / waveSize);
-            const k2 = (1 - k1) / 2;
-
-
-            const spherizedX = Math.floor(curX * k1 + width * k2);
-            const spherizedY = Math.floor(curY * k1 + height * k2);
-            // const k = (curDistance + waveSize / 2) / curDistance;
-            // const kx = k;
-            // const ky = k;
-            
-
-            // const { xx, yy } = spherize(curX, curY, width, height, curX * kx, curY * ky, radius + waveSize);
-            // const spherizedX = Math.floor(xx);
-            // const spherizedY = Math.floor(yy);
-            const resultIndex = (curY * width + curX) * 4;
-            // const sourceIndex = (curY * width + curX) * 4;
-            const sourceIndex = (spherizedY * width + spherizedX) * 4;
-            pixelsResult.data[resultIndex] = pixelsSource.data[sourceIndex] + waveScale * 100;
-            pixelsResult.data[resultIndex + 1] = pixelsSource.data[sourceIndex + 1] + waveScale * 100;
-            pixelsResult.data[resultIndex + 2] = pixelsSource.data[sourceIndex + 2] + waveScale * 100;
-            // pixelsResult.data[resultIndex + 3] = 256;
-          }
+        if (dist > this.radius && dist < this.radius + size) {
+          v.z = Math.sin((this.radius - dist) / -size) * magnitude + magnitude;
+        } else {
+          v.z = 0;
         }
       }
-      // for (var j = 0; j < height; j++) {
-      //     for (var i = 0; i < width; i++) {
-      //         var u = map[(i + j * height) * 2];
-      //         var v = map[(i + j * height) * 2 + 1];
-      //         var x = Math.floor(u);
-      //         var y = Math.floor(v);
-      //         var kx = u - x;
-      //         var ky = v - y;
-      //         for (var c = 0; c < 4; c++) {
-      //           pixelsResult.data[(i + j * height) * 4 + c] =
-      //                 (colorat(x, y, c, pixelsSource) * (1 - kx) + colorat(x + 1, y, c, pixelsSource) * kx) * (1 - ky) +
-      //                 (colorat(x, y + 1, c, pixelsSource) * (1 - kx) + colorat(x + 1, y + 1, c, pixelsSource) * kx) * (ky);
-      //         }
-      //     }
-      // }
-      this.ctx.putImageData(pixelsResult, 0, 0);
-      // this.ctx.beginPath();
-      // this.ctx.arc(waveX, waveY, this.radius, 0, 2 * Math.PI);
-      // this.ctx.stroke();
+      this.plane.geometry.verticesNeedUpdate = true;
+      this.renderer.render(this.scene, this.camera);
+      
+      
+      this.radius += 15;
 
-      this.radius += 40;
-    }, 50);
+      if (this.radius > maxDist) {
+        this.stopWaveEffect(this.requestID);
+      } else {
+        this.requestID = window.requestAnimationFrame(drawFrame);
+      };
+    };
+
+    drawFrame(0);
+  }
+
+  stopWaveEffect = (requestID) => {
+    window.cancelAnimationFrame(requestID);
+    this.radius = 0;
+    const vLength = this.plane.geometry.vertices.length;
+    for (let i = 0; i < vLength; i++) {
+      this.plane.geometry.vertices[i].z = 0;
+    }
+    this.plane.geometry.verticesNeedUpdate = true;
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  getTexture = () => {
+    const { currentTexture } = this.state;
+    if (currentTexture === -1) {
+      return this.coverTexture;
+    } else {
+      return this.textures[currentTexture];
+    }
   }
 
   render() {
-    const { x, y, w, h } = this.state;
+    const { currentScreen, screenNumber } = this.props;
+    const { width, height, currentTexture } = this.state;
+    const {bX, bY, bWidth, bHeight} = this.textures && this.coverTexture
+      ? getTextureBoundaries(this.getTexture(), width, height)
+      : {bX: 0, bY: 0, bWidth: 0, bHeight: 0}
     const eventTrapStyle = {
-      top: `${y}px`,
-      left: `${x}px`,
-      width: `${w}px`,
-      height: `${h}px`,
+      top: `${bY}px`,
+      left: `${bX}px`,
+      width: `${bWidth}px`,
+      height: `${bHeight}px`,
     }
+
+    const bigTitleStyle = {
+      position: "absolute",
+      top: `${bY + Math.round(0.5 * bHeight) - 110}px`,
+      left: `${bX - 50}px`,
+      pointerEvents: 'none'
+    }
+
+    let bigTitleState = SLIDE_APPEARANCE_NORMAL;
+    let bigTitleTransition = undefined;
+    if (currentTexture === -1) {
+      if (currentScreen === screenNumber) {
+        bigTitleTransition = "top ease-in 1.2s"
+        bigTitleState = SLIDE_APPEARANCE_NORMAL;
+      } else {
+        if (currentScreen > screenNumber) {
+          bigTitleState = SLIDE_APPEARANCE_DOWN;
+        } else {
+          bigTitleState = SLIDE_APPEARANCE_UP;
+        }
+      }
+    } else {
+      bigTitleState = SLIDE_APPEARANCE_UP;
+    }
+    
+    const smallTitleStyle = {
+      position: "absolute",
+      top: `${bY - 25}px`,
+      left: `${bX}px`,
+    }
+
+    const smallTitleState = currentTexture === -1
+      ? SLIDE_APPEARANCE_UP
+      : SLIDE_APPEARANCE_NORMAL;
 
     return (
       <div className="photo-slider">
         <div
-          className="photo-slider--event-trap"
+          className="photo-slider--tree-container"
           style={eventTrapStyle}
           onMouseEnter={this.handleMouseEnter}
-          onMouseLeave={this.handleMouseLeave}
           onClick={this.handleClick}
+          ref={this.treeContainerRef}
         >
         </div>
-        <canvas
-          className="photo-slider--canvas"
-          ref={this.canvasRef}
-        >
-        </canvas>
+        <SlideAppearance style={bigTitleStyle} state={bigTitleState} transition={bigTitleTransition}>
+          <h2 className="photo-slider--big-title">{this.props.title}</h2>
+        </SlideAppearance>
+        <SlideAppearance style={smallTitleStyle} state={smallTitleState}>
+          <span className="photo-slider--small-title">{this.props.title}</span>
+        </SlideAppearance>
       </div>
     );
   }

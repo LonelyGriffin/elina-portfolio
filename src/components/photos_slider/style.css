@@ -3,11 +3,23 @@
   width: 100%;
   height: 100%;
 }
-.photo-slider--canvas {
-  width: 100%;
-  height: 100%;
-}
-.photo-slider--event-trap {
+
+.photo-slider--tree-container {
   position: absolute;
   cursor: e-resize;
+  background-color: #c9cbca;
+}
+
+.photo-slider--big-title {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 65px;
+  font-weight: bold;
+  user-select: none;
+}
+
+.photo-slider--small-title {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+  user-select: none; 
 }

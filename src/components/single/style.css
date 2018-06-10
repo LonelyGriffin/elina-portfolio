@@ -1,0 +1,8 @@
+.single--arrow {
+  position: absolute;
+  bottom: 30px;
+  font-size: 40px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
