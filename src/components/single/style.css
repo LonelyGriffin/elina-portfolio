@@ -6,3 +6,74 @@
   justify-content: center;
   width: 100%;
 }
+
+.single--mail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.single--mail-inner {
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.single--mail-inner a {
+  color: inherit;
+  text-decoration: inherit;
+  cursor: pointer;
+  pointer-events: initial;
+  display: block;
+  transform: rotate(90deg);
+}
+
+.single--scroll {
+  height: 90%;
+  position: absolute;
+  right: 0;
+  top: 5%;
+  display: flex;
+  flex-direction: row;
+}
+
+.single--scroll--titles {
+  flex-direction: column;
+  display: flex;
+  justify-content: space-around;
+}
+
+.single--scroll--title {
+  font-size: 18px;
+  cursor: pointer;
+  pointer-events: initial;
+}
+
+.single--scroll--line {
+  width: 100px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.single--scroll--line--top {
+  width: 1px;
+  background-color: #252524;
+}
+
+.single--scroll--line--middle {
+  font-size: 30px;
+}
+
+.single--scroll--line--down {
+  flex: 1 auto;
+  width: 1px;
+  background-color: #252524;
+}

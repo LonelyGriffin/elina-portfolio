@@ -5,15 +5,17 @@ import {SlideAppearance, SLIDE_APPEARANCE_UP, SLIDE_APPEARANCE_NORMAL} from '../
 import './style.css';
 
 export class Single extends Component {
+
   render() {
     const { isHomePage } = this.props;
 
     const waveBoxStyle = {
       position: 'absolute',
       width: '100%',
-      height: '10%',
+      height: '50%',
+      transform: 'rotate(180deg)',
       transition: 'top ease-in 1s',
-      top: isHomePage ? '90%' : '150%',
+      top: isHomePage ? '0%' : '-100%',
     }
 
     const titleStyle = {
@@ -29,8 +31,25 @@ export class Single extends Component {
       transition: 'top ease-in 1s, font-size ease-in 1s',
     }
 
-    const subTitleState = isHomePage ? SLIDE_APPEARANCE_NORMAL : SLIDE_APPEARANCE_UP;
+    const mailStyle = {
+      opacity: isHomePage ? '0' : '1',
+      transition: 'opacity ease-in 1s',
+    }
 
+    
+    const topLine = 100 * (this.props.currentPageNumber === -1 ? 0.5 : this.props.currentPageNumber + 0.5) / this.props.screens.length;
+
+    const topLineStyle = {
+      height: `calc(${topLine}% - 17px)`,
+      transition: 'height ease-in 1s',
+    }
+
+    const scrollStyle = {
+      opacity: isHomePage ? '0' : '1',
+      transition: 'opacity ease-in 1s',
+    }
+
+    const subTitleState = isHomePage ? SLIDE_APPEARANCE_NORMAL : SLIDE_APPEARANCE_UP;
     const arrowState = isHomePage ? SLIDE_APPEARANCE_NORMAL : SLIDE_APPEARANCE_UP;
 
     return (
@@ -48,6 +67,31 @@ export class Single extends Component {
           <SlideAppearance state={arrowState}>
             <span>⇣</span>
           </SlideAppearance>
+        </div>
+        <div className="single--mail" style={mailStyle}>
+            <div className="single--mail-inner">
+              <a href="mailto:elina@gmail.com">elina@gmail.com</a>
+            </div>
+        </div>
+        <div className="single--scroll" style={scrollStyle}>
+          <div className="single--scroll--titles">
+            {
+              this.props.screens.map((screen, index) => (
+                <div
+                  className="single--scroll--title"
+                  onClick={() => this.props.onChangeScreen(index)}
+                  key={index}
+                >
+                  {screen.title}
+                </div>
+              ))
+            }
+          </div>
+          <div className="single--scroll--line">
+            <div className="single--scroll--line--top" style={topLineStyle}></div>
+            <div className="single--scroll--line--middle">{this.props.currentPageNumber === -1 ? 1 : this.props.currentPageNumber + 1}</div>
+            <div className="single--scroll--line--down"></div>
+          </div>
         </div>
       </FullWindowContainer>
     )

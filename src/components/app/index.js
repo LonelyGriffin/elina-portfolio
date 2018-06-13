@@ -78,7 +78,16 @@ class App extends Component {
           </PhotosScreens>
         </div>
         <div className="app-single">
-          <Single isHomePage={isHomePage}></Single>
+          <Single
+            isHomePage={isHomePage}
+            currentPageNumber={this.state.currentPageNumber}
+            screens={screens}
+            onChangeScreen={newScreen => {
+              this.setState({
+                currentPageNumber: newScreen,
+              })
+            }}
+          ></Single>
         </div>
       </FullWindowContainer>
     );
