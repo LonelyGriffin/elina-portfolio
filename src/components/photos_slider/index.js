@@ -5,27 +5,6 @@ import * as THREE from 'three';
 import './style.css';
 import { SlideAppearance, SLIDE_APPEARANCE_UP, SLIDE_APPEARANCE_NORMAL, SLIDE_APPEARANCE_DOWN } from '../slide_appearance';
 
-const loadTexture = async (imageUrl) => {
-  return new Promise(done => {
-    const texture = new THREE.TextureLoader().load(imageUrl, () => {
-      // texture.wrapS = THREE.RepeatWrapping;
-      // texture.wrapT = THREE.RepeatWrapping;
-      texture.minFilter = THREE.LinearFilter;
-      // texture.repeat.set(1, 1);
-      done(texture);
-    });
-  });
-}
-
-const loadTextures = async (imageUrls) => {
-  const textures = [];
-  for(let i = 0; i < imageUrls.length; i++) {
-    const texture = await loadTexture(imageUrls[i]);
-    textures.push(texture);
-  }
-  return textures;
-}
-
 /**
  * Возвращает информацию о размера и положении текстуры и граничащей области
  * @param {THREE.Texture} texture 
@@ -78,9 +57,11 @@ export class PhotosSlider extends Component {
     this.radius = 0;
   }
 
-  async componentDidMount() {
-    this.textures = await loadTextures(this.props.images);
-    this.coverTexture = await loadTexture(this.props.cover);
+  componentDidMount() {
+    // this.textures = await loadTextures(this.props.images);
+    // this.coverTexture = await loadTexture(this.props.cover);
+    this.textures = this.props.images;
+    this.coverTexture = this.props.cover;
     this.scene = new THREE.Scene();
     this.renderer = new THREE.WebGLRenderer({ alpha: true });
     this.camera = new THREE.PerspectiveCamera();

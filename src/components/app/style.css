@@ -12,3 +12,23 @@
   left: 0;
   pointer-events: none;
 }
+
+.app-loader {
+  position: fixed;
+  z-index: 100000;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  pointer-events: none;
+  background-color: #ebe8e3;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.app-loader--body {
+  width: 200px;
+  height: 200px;
+  background: url(../../svg/loader.svg)
+}

@@ -37,7 +37,7 @@ export class Single extends Component {
     }
 
     
-    const topLine = 100 * (this.props.currentPageNumber === -1 ? 0.5 : this.props.currentPageNumber + 0.5) / this.props.screens.length;
+    const topLine = 100 * (this.props.currentPageNumber === -1 ? 0 : this.props.currentPageNumber) / (this.props.screens.length - 1);
 
     const topLineStyle = {
       height: `calc(${topLine}% - 17px)`,
